@@ -1,5 +1,6 @@
 @page "/admin/patients"
 @inject IPatientService PatientService
+@inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
 
 <PageTitle>Patients - MMGC</PageTitle>
@@ -7,7 +8,7 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-people"></i> Patients Management</h2>
-        <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Patient</button>
+        <button class="btn btn-primary" @onclick="ShowAddModal"><i class="bi bi-plus-circle"></i> Add Patient</button>
     </div>
 
     <div class="card border-0 shadow-sm">
@@ -25,7 +26,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @if (patients != null)
+                        @if (patients != null && patients.Any())
                         {
                             @foreach (var patient in patients)
                             {
@@ -36,11 +37,17 @@
                                     <td>@(patient.Age?.ToString() ?? "N/A")</td>
                                     <td>@patient.Gender</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
-                                        <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => EditPatient(patient.Id)"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-info" @onclick="() => ViewPatient(patient.Id)"><i class="bi bi-eye"></i></button>
                                     </td>
                                 </tr>
                             }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">No patients found. Click "Add Patient" to create one.</td>
+                            </tr>
                         }
                     </tbody>
                 </table>
@@ -49,11 +56,217 @@
     </div>
 </div>
 
+<!-- Add/Edit Patient Modal -->
+@if (showModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-person-plus"></i> @(isEditing ? "Edit Patient" : "New Patient")</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <EditForm Model="@currentPatient" OnValidSubmit="HandleValidSubmit">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">First Name <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentPatient.FirstName" class="form-control" placeholder="First Name" />
+                                <ValidationMessage For="@(() => currentPatient.FirstName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentPatient.LastName" class="form-control" placeholder="Last Name" />
+                                <ValidationMessage For="@(() => currentPatient.LastName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <InputText @bind-Value="currentPatient.Email" type="email" class="form-control" placeholder="email@example.com" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentPatient.Phone" class="form-control" placeholder="Phone Number" />
+                                <ValidationMessage For="@(() => currentPatient.Phone)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Alternate Phone</label>
+                                <InputText @bind-Value="currentPatient.AlternatePhone" class="form-control" placeholder="Alternate Phone" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Date of Birth</label>
+                                <InputDate @bind-Value="dateOfBirth" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Age</label>
+                                <InputNumber @bind-Value="currentPatient.Age" class="form-control" placeholder="Age" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Gender <span class="text-danger">*</span></label>
+                                <InputSelect @bind-Value="currentPatient.Gender" class="form-select">
+                                    <option value="">-- Select Gender --</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => currentPatient.Gender)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Blood Group</label>
+                                <InputSelect @bind-Value="currentPatient.BloodGroup" class="form-select">
+                                    <option value="">-- Select Blood Group --</option>
+                                    <option value="A+">A+</option>
+                                    <option value="A-">A-</option>
+                                    <option value="B+">B+</option>
+                                    <option value="B-">B-</option>
+                                    <option value="AB+">AB+</option>
+                                    <option value="AB-">AB-</option>
+                                    <option value="O+">O+</option>
+                                    <option value="O-">O-</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Address</label>
+                                <InputTextArea @bind-Value="currentPatient.Address" class="form-control" rows="2" placeholder="Street Address" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">City</label>
+                                <InputText @bind-Value="currentPatient.City" class="form-control" placeholder="City" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">State</label>
+                                <InputText @bind-Value="currentPatient.State" class="form-control" placeholder="State" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Zip Code</label>
+                                <InputText @bind-Value="currentPatient.ZipCode" class="form-control" placeholder="Zip Code" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Emergency Contact Name</label>
+                                <InputText @bind-Value="currentPatient.EmergencyContactName" class="form-control" placeholder="Emergency Contact Name" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Emergency Contact Phone</label>
+                                <InputText @bind-Value="currentPatient.EmergencyContactPhone" class="form-control" placeholder="Emergency Contact Phone" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Medical History</label>
+                                <InputTextArea @bind-Value="currentPatient.MedicalHistory" class="form-control" rows="3" placeholder="Previous medical conditions, surgeries, etc." />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Allergies</label>
+                                <InputTextArea @bind-Value="currentPatient.Allergies" class="form-control" rows="2" placeholder="Known allergies (medications, food, etc.)" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            }
+                            <i class="bi bi-save"></i> @(isEditing ? "Update" : "Save") Patient
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show" @onclick="CloseModal"></div>
+}
+
 @code {
     private IEnumerable<Patient>? patients;
+    private bool showModal = false;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private Patient currentPatient = new();
+    private DateTime? dateOfBirth;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadPatients();
+    }
+
+    private async Task LoadPatients()
+    {
         patients = await PatientService.GetAllPatientsAsync();
+    }
+
+    private void ShowAddModal()
+    {
+        currentPatient = new Patient();
+        dateOfBirth = null;
+        isEditing = false;
+        showModal = true;
+    }
+
+    private async Task EditPatient(int id)
+    {
+        var patient = await PatientService.GetPatientByIdAsync(id);
+        if (patient != null)
+        {
+            currentPatient = patient;
+            dateOfBirth = patient.DateOfBirth;
+            isEditing = true;
+            showModal = true;
+        }
+    }
+
+    private void ViewPatient(int id)
+    {
+        // TODO: Navigate to patient detail page
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        currentPatient = new Patient();
+        dateOfBirth = null;
+        isEditing = false;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        isSaving = true;
+        try
+        {
+            // Update DateOfBirth if provided
+            if (dateOfBirth.HasValue)
+            {
+                currentPatient.DateOfBirth = dateOfBirth.Value;
+                // Calculate age if not provided
+                if (!currentPatient.Age.HasValue)
+                {
+                    var today = DateTime.Today;
+                    var age = today.Year - dateOfBirth.Value.Year;
+                    if (dateOfBirth.Value.Date > today.AddYears(-age)) age--;
+                    currentPatient.Age = age;
+                }
+            }
+
+            if (isEditing)
+            {
+                await PatientService.UpdatePatientAsync(currentPatient);
+                await JSRuntime.InvokeVoidAsync("alert", "Patient updated successfully!");
+            }
+            else
+            {
+                await PatientService.CreatePatientAsync(currentPatient);
+                await JSRuntime.InvokeVoidAsync("alert", "Patient created successfully!");
+            }
+
+            await LoadPatients();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error saving patient: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 }

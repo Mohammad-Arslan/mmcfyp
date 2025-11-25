@@ -15,7 +15,18 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+{
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        sqlOptions.CommandTimeout(30);
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null);
+    });
+    options.EnableSensitiveDataLogging(builder.Environment.IsDevelopment());
+    options.EnableServiceProviderCaching();
+});
 
 // Register Repository Pattern (DRY Principle)
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
@@ -64,10 +75,12 @@ using (var scope = app.Services.CreateScope())
                 if (i == maxRetries - 1)
                 {
                     logger.LogError(ex, "Failed to connect to database after {MaxRetries} attempts.", maxRetries);
-                    throw;
+                    // Don't throw - let the app start anyway, database might be available later
+                    logger.LogWarning("Application will continue without database initialization. Database may become available later.");
+                    break;
                 }
-                logger.LogWarning("Database not ready yet. Retrying in {Delay} seconds... (Attempt {Attempt}/{MaxRetries})", 
-                    retryDelay.TotalSeconds, i + 1, maxRetries);
+                logger.LogWarning("Database not ready yet. Retrying in {Delay} seconds... (Attempt {Attempt}/{MaxRetries}). Error: {Error}", 
+                    retryDelay.TotalSeconds, i + 1, maxRetries, ex.Message);
                 Thread.Sleep(retryDelay);
             }
         }

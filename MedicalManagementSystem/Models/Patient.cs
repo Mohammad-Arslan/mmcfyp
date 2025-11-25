@@ -1,15 +1,24 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace MedicalManagementSystem.Models;
 
 public class Patient : BaseEntity
 {
     public string MRNumber { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "First name is required")]
     public string FirstName { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "Last name is required")]
     public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Phone number is required")]
     public string Phone { get; set; } = string.Empty;
     public string AlternatePhone { get; set; } = string.Empty;
     public DateTime? DateOfBirth { get; set; }
     public int? Age { get; set; }
+    
+    [Required(ErrorMessage = "Gender is required")]
     public string Gender { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;

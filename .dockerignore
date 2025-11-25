@@ -1,67 +1,41 @@
-# .NET build artifacts
+# Build artifacts
 **/bin/
 **/obj/
 **/out/
+**/publish/
 
-# Visual Studio files
-.vs/
+# IDE files
+**/.vs/
+**/.vscode/
+**/.idea/
 *.user
 *.suo
-*.userosscache
-*.sln.docstates
 
-# Rider
-.idea/
-*.sln.iml
-
-# VS Code
-.vscode/
-
-# Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
-x64/
-x86/
-[Ww][Ii][Nn]32/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-[Ll]ogs/
-
-# NuGet Packages
+# NuGet
+**/packages/
 *.nupkg
-**/packages/*
-!**/packages/build/
-*.nuget.props
-*.nuget.targets
-project.lock.json
-project.fragment.lock.json
-artifacts/
+*.snupkg
 
-# Test results
-[Tt]est[Rr]esult*/
-[Bb]uild[Ll]og.*
+# Logs
+**/*.log
+**/logs/
+
+# OS files
+**/.DS_Store
+**/Thumbs.db
 
 # Git
-.git/
-.gitignore
-.gitattributes
+**/.git/
+**/.gitignore
 
 # Docker
-Dockerfile*
-docker-compose*
-.dockerignore
+**/Dockerfile*
+**/docker-compose*.yml
+**/.dockerignore
 
-# Documentation
-*.md
-!README.md
+# Environment
+**/.env
+**/.env.local
 
-# Misc
-.DS_Store
-Thumbs.db
-
+# Node modules (if any)
+**/node_modules/

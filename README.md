@@ -54,6 +54,20 @@ docker-compose up --build
 
 All development and deployment happens through Docker. See [DOCKER_SETUP.md](DOCKER_SETUP.md) for details.
 
+### 🔥 Hot Reload Enabled!
+
+**Code changes are automatically reflected** - no container restart needed!
+
+```bash
+# Start with hot reload (default)
+docker-compose up --build
+
+# Make changes to your code
+# Save files → Changes appear automatically!
+```
+
+See [HOT_RELOAD.md](HOT_RELOAD.md) for detailed hot reload documentation.
+
 ---
 
 **Note**: This is Phase I implementation. The system is ready for use and can be extended in Phase II.

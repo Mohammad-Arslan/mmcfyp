@@ -23,14 +23,22 @@ services:
   blazor-app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ${DOCKERFILE:-Dockerfile.dev}
     container_name: blazor-app
     ports:
       - "${BLAZOR_APP_PORT:-8080}:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=Server=mssql,1433;Database=${DB_NAME:-MedicalManagementSystem};User Id=${DB_USER:-sa};Password=${MSSQL_SA_PASSWORD:-YourStrong@Password123};TrustServerCertificate=True;MultipleActiveResultSets=True
+      - DOTNET_USE_POLLING_FILE_WATCHER=true
+      - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
+      - ConnectionStrings__DefaultConnection=Server=mssql,1433;Database=${DB_NAME:-MedicalManagementSystem};User Id=${DB_USER:-sa};Password=${MSSQL_SA_PASSWORD:-YourStrong@Password123};TrustServerCertificate=True;MultipleActiveResultSets=True;Encrypt=False;Connection Timeout=30;Command Timeout=30;Pooling=true;Min Pool Size=0;Max Pool Size=100;Packet Size=4096
+    volumes:
+      # Mount source code for hot reload (read-write)
+      - ./MedicalManagementSystem:/app/MedicalManagementSystem
+      # Use anonymous volumes for build artifacts (faster, avoids host conflicts)
+      - /app/MedicalManagementSystem/bin
+      - /app/MedicalManagementSystem/obj
     depends_on:
       mssql:
         condition: service_healthy

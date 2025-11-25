@@ -2,6 +2,7 @@
 @inject IAppointmentService AppointmentService
 @inject IPatientService PatientService
 @inject IDoctorService DoctorService
+@inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
 
 <PageTitle>Appointments - MMGC</PageTitle>
@@ -53,12 +54,126 @@
     </div>
 </div>
 
+<!-- Add Appointment Modal -->
+@if (showAddModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-calendar-plus"></i> New Appointment</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseAddModal"></button>
+                </div>
+                <EditForm Model="@newAppointment" OnValidSubmit="HandleValidSubmit">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Patient <span class="text-danger">*</span></label>
+                                <InputSelect @bind-Value="selectedPatientId" class="form-select">
+                                    <option value="0">-- Select Patient --</option>
+                                    @if (patients != null)
+                                    {
+                                        @foreach (var patient in patients)
+                                        {
+                                            <option value="@patient.Id">@patient.FullName (@patient.MRNumber)</option>
+                                        }
+                                    }
+                                </InputSelect>
+                                @if (selectedPatientId == 0)
+                                {
+                                    <span class="text-danger small">Please select a patient</span>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Doctor</label>
+                                <InputSelect @bind-Value="selectedDoctorId" class="form-select">
+                                    <option value="">-- Select Doctor (Optional) --</option>
+                                    @if (doctors != null)
+                                    {
+                                        @foreach (var doctor in doctors)
+                                        {
+                                            <option value="@doctor.Id">@doctor.FullName - @doctor.Specialization</option>
+                                        }
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Appointment Date <span class="text-danger">*</span></label>
+                                <InputDate @bind-Value="appointmentDate" class="form-control" />
+                                <ValidationMessage For="@(() => newAppointment.AppointmentDate)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Appointment Time <span class="text-danger">*</span></label>
+                                <input type="time" value="@appointmentTimeString" @onchange="@((ChangeEventArgs e) => appointmentTimeString = e.Value?.ToString() ?? "09:00")" class="form-control" />
+                                @if (string.IsNullOrEmpty(appointmentTimeString))
+                                {
+                                    <span class="text-danger small">Please select a time</span>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Appointment Type <span class="text-danger">*</span></label>
+                                <InputSelect @bind-Value="newAppointment.AppointmentType" class="form-select">
+                                    <option value="">-- Select Type --</option>
+                                    <option value="OPD">OPD</option>
+                                    <option value="IPD">IPD</option>
+                                    <option value="Follow-up">Follow-up</option>
+                                    <option value="Emergency">Emergency</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => newAppointment.AppointmentType)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Status</label>
+                                <InputSelect @bind-Value="newAppointment.Status" class="form-select">
+                                    <option value="Scheduled">Scheduled</option>
+                                    <option value="Confirmed">Confirmed</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Reason</label>
+                                <InputTextArea @bind-Value="newAppointment.Reason" class="form-control" rows="2" placeholder="Reason for appointment..." />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Notes</label>
+                                <InputTextArea @bind-Value="newAppointment.Notes" class="form-control" rows="2" placeholder="Additional notes..." />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            }
+                            <i class="bi bi-save"></i> Save Appointment
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show" @onclick="CloseAddModal"></div>
+}
+
 @code {
     private IEnumerable<Appointment>? appointments;
+    private IEnumerable<Patient>? patients;
+    private IEnumerable<Doctor>? doctors;
+    private bool showAddModal = false;
+    private bool isSaving = false;
+    private Appointment newAppointment = new();
+    private int selectedPatientId = 0;
+    private int? selectedDoctorId;
+    private DateTime appointmentDate = DateTime.Today;
+    private string appointmentTimeString = "09:00"; // Time input as string for HTML5 time input
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAppointments();
+        await LoadPatients();
+        await LoadDoctors();
     }
 
     private async Task LoadAppointments()
@@ -66,9 +181,102 @@
         appointments = await AppointmentService.GetAllAppointmentsAsync();
     }
 
+    private async Task LoadPatients()
+    {
+        patients = await PatientService.GetAllPatientsAsync();
+    }
+
+    private async Task LoadDoctors()
+    {
+        doctors = await DoctorService.GetAllDoctorsAsync();
+    }
+
     private void ShowAddModal()
     {
-        // TODO: Implement add modal
+        newAppointment = new Appointment
+        {
+            Status = "Scheduled",
+            AppointmentDate = DateTime.Today,
+            AppointmentTime = TimeSpan.FromHours(9)
+        };
+        appointmentDate = DateTime.Today;
+        appointmentTimeString = "09:00";
+        selectedPatientId = 0;
+        selectedDoctorId = null;
+        showAddModal = true;
+    }
+
+    private void CloseAddModal()
+    {
+        showAddModal = false;
+        newAppointment = new Appointment();
+        selectedPatientId = 0;
+        selectedDoctorId = null;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        // Validate patient selection
+        if (selectedPatientId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please select a patient");
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            // Set patient ID
+            newAppointment.PatientId = selectedPatientId;
+
+            // Combine date and time
+            if (!string.IsNullOrEmpty(appointmentTimeString))
+            {
+                newAppointment.AppointmentDate = appointmentDate.Date;
+                
+                // Parse time string (HH:mm format)
+                if (TimeSpan.TryParse(appointmentTimeString, out var timeSpan))
+                {
+                    newAppointment.AppointmentTime = timeSpan;
+                }
+                else
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Invalid time format. Please use HH:mm format.");
+                    isSaving = false;
+                    return;
+                }
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Please select both date and time");
+                isSaving = false;
+                return;
+            }
+
+            // Handle nullable DoctorId
+            if (selectedDoctorId.HasValue && selectedDoctorId.Value > 0)
+            {
+                newAppointment.DoctorId = selectedDoctorId.Value;
+            }
+            else
+            {
+                newAppointment.DoctorId = null;
+            }
+
+            await AppointmentService.CreateAppointmentAsync(newAppointment);
+            await LoadAppointments();
+            CloseAddModal();
+            
+            await JSRuntime.InvokeVoidAsync("alert", "Appointment created successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error creating appointment: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 
     private void EditAppointment(int id)

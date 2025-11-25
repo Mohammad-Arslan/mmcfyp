@@ -1,5 +1,6 @@
 @page "/admin/doctors"
 @inject IDoctorService DoctorService
+@inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
 
 <PageTitle>Doctors - MMGC</PageTitle>
@@ -7,7 +8,7 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-person-badge"></i> Doctors Management</h2>
-        <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Doctor</button>
+        <button class="btn btn-primary" @onclick="ShowAddModal"><i class="bi bi-plus-circle"></i> Add Doctor</button>
     </div>
 
     <div class="card border-0 shadow-sm">
@@ -27,7 +28,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @if (doctors != null)
+                        @if (doctors != null && doctors.Any())
                         {
                             @foreach (var doctor in doctors)
                             {
@@ -36,15 +37,21 @@
                                     <td>@doctor.Specialization</td>
                                     <td>@doctor.Email</td>
                                     <td>@doctor.Phone</td>
-                                    <td>@(doctorAppointmentCounts.GetValueOrDefault(doctor.Id, 0))</td>
-                                    <td>₹@(doctorRevenues.GetValueOrDefault(doctor.Id, 0)).ToString("N2")</td>
+                                    <td>@doctorAppointmentCounts.GetValueOrDefault(doctor.Id, 0)</td>
+                                    <td>₹@doctorRevenues.GetValueOrDefault(doctor.Id, 0).ToString("N2")</td>
                                     <td><span class="badge bg-@(doctor.Status == "Active" ? "success" : "secondary")">@doctor.Status</span></td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => EditDoctor(doctor.Id)"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteDoctor(doctor.Id)"><i class="bi bi-trash"></i></button>
                                     </td>
                                 </tr>
                             }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">No doctors found. Click "Add Doctor" to create one.</td>
+                            </tr>
                         }
                     </tbody>
                 </table>
@@ -53,23 +60,218 @@
     </div>
 </div>
 
+<!-- Add/Edit Doctor Modal -->
+@if (showModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-person-badge"></i> @(isEditing ? "Edit Doctor" : "New Doctor")</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <EditForm Model="@currentDoctor" OnValidSubmit="HandleValidSubmit">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">First Name <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentDoctor.FirstName" class="form-control" placeholder="First Name" />
+                                <ValidationMessage For="@(() => currentDoctor.FirstName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentDoctor.LastName" class="form-control" placeholder="Last Name" />
+                                <ValidationMessage For="@(() => currentDoctor.LastName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Specialization <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentDoctor.Specialization" class="form-control" placeholder="e.g., Cardiology, Pediatrics" />
+                                <ValidationMessage For="@(() => currentDoctor.Specialization)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Qualification <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentDoctor.Qualification" class="form-control" placeholder="e.g., MBBS, MD" />
+                                <ValidationMessage For="@(() => currentDoctor.Qualification)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">License Number <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentDoctor.LicenseNumber" class="form-control" placeholder="Medical License Number" />
+                                <ValidationMessage For="@(() => currentDoctor.LicenseNumber)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <InputText @bind-Value="currentDoctor.Email" type="email" class="form-control" placeholder="email@example.com" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="currentDoctor.Phone" class="form-control" placeholder="Phone Number" />
+                                <ValidationMessage For="@(() => currentDoctor.Phone)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Date of Birth</label>
+                                <InputDate @bind-Value="dateOfBirth" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Gender <span class="text-danger">*</span></label>
+                                <InputSelect @bind-Value="currentDoctor.Gender" class="form-select">
+                                    <option value="">-- Select Gender --</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => currentDoctor.Gender)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Consultation Fee <span class="text-danger">*</span></label>
+                                <InputNumber @bind-Value="currentDoctor.ConsultationFee" class="form-control" placeholder="0.00" step="0.01" />
+                                <ValidationMessage For="@(() => currentDoctor.ConsultationFee)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Status</label>
+                                <InputSelect @bind-Value="currentDoctor.Status" class="form-select">
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                    <option value="On Leave">On Leave</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Address</label>
+                                <InputTextArea @bind-Value="currentDoctor.Address" class="form-control" rows="2" placeholder="Street Address" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            }
+                            <i class="bi bi-save"></i> @(isEditing ? "Update" : "Save") Doctor
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show" @onclick="CloseModal"></div>
+}
+
 @code {
     private IEnumerable<Doctor>? doctors;
     private Dictionary<int, int> doctorAppointmentCounts = new();
     private Dictionary<int, decimal> doctorRevenues = new();
+    private bool showModal = false;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private Doctor currentDoctor = new();
+    private DateTime? dateOfBirth;
 
     protected override async Task OnInitializedAsync()
+    {
+        await LoadDoctors();
+    }
+
+    private async Task LoadDoctors()
     {
         doctors = await DoctorService.GetAllDoctorsAsync();
         
         // Load appointment counts and revenues for all doctors
         if (doctors != null)
         {
+            doctorAppointmentCounts.Clear();
+            doctorRevenues.Clear();
             foreach (var doctor in doctors)
             {
                 doctorAppointmentCounts[doctor.Id] = await DoctorService.GetDoctorAppointmentCountAsync(doctor.Id);
                 doctorRevenues[doctor.Id] = await DoctorService.GetDoctorTotalRevenueAsync(doctor.Id);
             }
+        }
+    }
+
+    private void ShowAddModal()
+    {
+        currentDoctor = new Doctor
+        {
+            Status = "Active",
+            ConsultationFee = 0
+        };
+        dateOfBirth = null;
+        isEditing = false;
+        showModal = true;
+    }
+
+    private async Task EditDoctor(int id)
+    {
+        var doctor = await DoctorService.GetDoctorByIdAsync(id);
+        if (doctor != null)
+        {
+            currentDoctor = doctor;
+            dateOfBirth = doctor.DateOfBirth;
+            isEditing = true;
+            showModal = true;
+        }
+    }
+
+    private async Task DeleteDoctor(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this doctor?");
+        if (confirmed)
+        {
+            try
+            {
+                await DoctorService.DeleteDoctorAsync(id);
+                await JSRuntime.InvokeVoidAsync("alert", "Doctor deleted successfully!");
+                await LoadDoctors();
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Error deleting doctor: {ex.Message}");
+            }
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        currentDoctor = new Doctor();
+        dateOfBirth = null;
+        isEditing = false;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        isSaving = true;
+        try
+        {
+            // Update DateOfBirth if provided
+            if (dateOfBirth.HasValue)
+            {
+                currentDoctor.DateOfBirth = dateOfBirth.Value;
+            }
+
+            if (isEditing)
+            {
+                await DoctorService.UpdateDoctorAsync(currentDoctor);
+                await JSRuntime.InvokeVoidAsync("alert", "Doctor updated successfully!");
+            }
+            else
+            {
+                await DoctorService.CreateDoctorAsync(currentDoctor);
+                await JSRuntime.InvokeVoidAsync("alert", "Doctor created successfully!");
+            }
+
+            await LoadDoctors();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error saving doctor: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
         }
     }
 }
