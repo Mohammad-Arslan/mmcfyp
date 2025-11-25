@@ -1,0 +1,48 @@
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-server
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:-YourStrong@Password123}
+      - MSSQL_PID=Developer
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    restart: unless-stopped
+    networks:
+      - blazor-network
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${MSSQL_SA_PASSWORD:-YourStrong@Password123} -Q "SELECT 1" -C || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  blazor-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blazor-app
+    ports:
+      - "${BLAZOR_APP_PORT:-8080}:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Server=mssql,1433;Database=${DB_NAME:-MedicalManagementSystem};User Id=${DB_USER:-sa};Password=${MSSQL_SA_PASSWORD:-YourStrong@Password123};TrustServerCertificate=True;MultipleActiveResultSets=True
+    depends_on:
+      mssql:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - blazor-network
+
+volumes:
+  mssql-data:
+    driver: local
+
+networks:
+  blazor-network:
+    driver: bridge
+
