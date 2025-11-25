@@ -1,0 +1,182 @@
+@page "/admin/dashboard"
+@page "/"
+@inject IDashboardService DashboardService
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard - MMGC</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary"><i class="bi bi-speedometer2"></i> Dashboard</h2>
+        <div class="text-muted">@DateTime.Now.ToString("dddd, MMMM dd, yyyy")</div>
+    </div>
+
+    <!-- Overview Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">Total Appointments</h6>
+                            <h2 class="mb-0 text-primary">@totalAppointments</h2>
+                        </div>
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                            <i class="bi bi-calendar-check text-primary fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">Total Patients</h6>
+                            <h2 class="mb-0 text-success">@totalPatients</h2>
+                        </div>
+                        <div class="bg-success bg-opacity-10 rounded-circle p-3">
+                            <i class="bi bi-people text-success fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">Total Procedures</h6>
+                            <h2 class="mb-0 text-info">@totalProcedures</h2>
+                        </div>
+                        <div class="bg-info bg-opacity-10 rounded-circle p-3">
+                            <i class="bi bi-clipboard-pulse text-info fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">Lab Reports</h6>
+                            <h2 class="mb-0 text-warning">@totalLabReports</h2>
+                        </div>
+                        <div class="bg-warning bg-opacity-10 rounded-circle p-3">
+                            <i class="bi bi-file-earmark-medical text-warning fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revenue Card -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Total Revenue</h5>
+                </div>
+                <div class="card-body">
+                    <h2 class="text-primary">₹@totalRevenue.ToString("N2")</h2>
+                    <p class="text-muted mb-0">All time revenue</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-calendar-month"></i> Monthly Revenue</h5>
+                </div>
+                <div class="card-body">
+                    <h2 class="text-success">₹@monthlyRevenue.ToString("N2")</h2>
+                    <p class="text-muted mb-0">@DateTime.Now.ToString("MMMM yyyy")</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Appointments -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-calendar-day"></i> Today's Appointments</h5>
+        </div>
+        <div class="card-body">
+            @if (dailyAppointments != null && dailyAppointments.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Patient</th>
+                                <th>Doctor</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (dynamic appointment in dailyAppointments)
+                            {
+                                <tr>
+                                    <td>@((TimeSpan)appointment.AppointmentTime)</td>
+                                    <td>@appointment.PatientName</td>
+                                    <td>@appointment.DoctorName</td>
+                                    <td><span class="badge bg-info">@appointment.AppointmentType</span></td>
+                                    <td><span class="badge bg-@GetStatusColor(appointment.Status)">@appointment.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted text-center py-4">No appointments scheduled for today.</p>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private int totalAppointments;
+    private int totalPatients;
+    private int totalProcedures;
+    private int totalLabReports;
+    private decimal totalRevenue;
+    private decimal monthlyRevenue;
+    private IEnumerable<object>? dailyAppointments;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        totalAppointments = await DashboardService.GetTotalAppointmentsAsync();
+        totalPatients = await DashboardService.GetTotalPatientsAsync();
+        totalProcedures = await DashboardService.GetTotalProceduresAsync();
+        totalLabReports = await DashboardService.GetTotalLabReportsAsync();
+        totalRevenue = await DashboardService.GetTotalRevenueAsync();
+        monthlyRevenue = await DashboardService.GetMonthlyRevenueAsync(DateTime.Now.Month, DateTime.Now.Year);
+        dailyAppointments = await DashboardService.GetDailyAppointmentsAsync(DateTime.Now);
+    }
+
+    private string GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Scheduled" => "primary",
+            "Completed" => "success",
+            "Cancelled" => "danger",
+            "No Show" => "warning",
+            _ => "secondary"
+        };
+    }
+}

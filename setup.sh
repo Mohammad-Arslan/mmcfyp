@@ -274,19 +274,20 @@ fi
 
 # Stop and remove existing containers if they exist
 print_info "Cleaning up existing containers..."
-if docker ps -a --format '{{.Names}}' | grep -q "^blazor-app$"; then
-    print_info "Stopping existing blazor-app container..."
-    docker stop blazor-app 2>/dev/null || true
-    docker rm blazor-app 2>/dev/null || true
-    print_success "Removed existing blazor-app container"
-fi
 
-if docker ps -a --format '{{.Names}}' | grep -q "^mssql-server$"; then
-    print_info "Stopping existing mssql-server container..."
-    docker stop mssql-server 2>/dev/null || true
-    docker rm mssql-server 2>/dev/null || true
-    print_success "Removed existing mssql-server container"
-fi
+# List of containers to clean up (matching docker-compose.yml container names)
+CONTAINERS=("blazor-app" "mssql-server" "sqlpad")
+
+for container in "${CONTAINERS[@]}"; do
+    if docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+        print_info "Stopping existing ${container} container..."
+        docker stop "${container}" 2>/dev/null || true
+        docker rm "${container}" 2>/dev/null || true
+        print_success "Removed existing ${container} container"
+    else
+        print_info "No existing ${container} container found (skipping)"
+    fi
+done
 
 # Build and start containers
 echo ""
@@ -392,7 +393,7 @@ if docker ps --format '{{.Names}}' | grep -q "^blazor-app$"; then
     # Show container info
     echo ""
     echo -e "${BLUE}Container Information:${NC}"
-    docker ps --filter "name=blazor-app" --filter "name=mssql-server" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    docker ps --filter "name=blazor-app" --filter "name=mssql-server" --filter "name=sqlpad" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     
     # Check if the application is responding
     echo ""

@@ -1,7 +1,10 @@
-﻿@page "/"
+﻿@page "/home"
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
 
-<PageTitle>Home</PageTitle>
-
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/admin/dashboard", forceLoad: true);
+    }
+}

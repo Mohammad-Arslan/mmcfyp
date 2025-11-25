@@ -1,0 +1,59 @@
+@page "/admin/patients"
+@inject IPatientService PatientService
+@rendermode InteractiveServer
+
+<PageTitle>Patients - MMGC</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-people"></i> Patients Management</h2>
+        <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Patient</button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>MR Number</th>
+                            <th>Name</th>
+                            <th>Contact</th>
+                            <th>Age</th>
+                            <th>Gender</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (patients != null)
+                        {
+                            @foreach (var patient in patients)
+                            {
+                                <tr>
+                                    <td>@patient.MRNumber</td>
+                                    <td><a href="/admin/patients/@patient.Id">@patient.FullName</a></td>
+                                    <td>@patient.Phone</td>
+                                    <td>@(patient.Age?.ToString() ?? "N/A")</td>
+                                    <td>@patient.Gender</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<Patient>? patients;
+
+    protected override async Task OnInitializedAsync()
+    {
+        patients = await PatientService.GetAllPatientsAsync();
+    }
+}

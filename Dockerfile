@@ -54,9 +54,6 @@ RUN chown -R appuser:appuser /app
 # Copy published files from publish stage
 COPY --from=publish /app/publish .
 
-# Switch to non-root user
-USER appuser
-
 # Expose the port the app runs on
 EXPOSE 8080
 
@@ -65,15 +62,32 @@ ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
 # Run the application
-# Create entrypoint script that finds the DLL dynamically
+# Find the main application DLL by looking for one with a runtimeconfig.json file
 RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
-    echo 'DLL_NAME=$(find /app -name "*.dll" -type f ! -name "*.Views.dll" ! -name "*.PrecompiledViews.dll" | head -n 1 | xargs basename)' >> /app/entrypoint.sh && \
-    echo 'if [ -z "$DLL_NAME" ]; then' >> /app/entrypoint.sh && \
-    echo '  echo "Error: No application DLL found!"' >> /app/entrypoint.sh && \
-    echo '  exit 1' >> /app/entrypoint.sh && \
-    echo 'fi' >> /app/entrypoint.sh && \
-    echo 'echo "Starting application: $DLL_NAME"' >> /app/entrypoint.sh && \
-    echo 'exec dotnet "$DLL_NAME"' >> /app/entrypoint.sh && \
-    chmod +x /app/entrypoint.sh
+    echo 'set -e' >> /app/entrypoint.sh && \
+    echo '# Find DLLs that have a corresponding runtimeconfig.json (these are executable apps)' >> /app/entrypoint.sh && \
+    echo 'for dll in /app/*.dll; do' >> /app/entrypoint.sh && \
+    echo '  if [ -f "$dll" ]; then' >> /app/entrypoint.sh && \
+    echo '    basename_dll=$(basename "$dll" .dll)' >> /app/entrypoint.sh && \
+    echo '    runtimeconfig="/app/${basename_dll}.runtimeconfig.json"' >> /app/entrypoint.sh && \
+    echo '    if [ -f "$runtimeconfig" ]; then' >> /app/entrypoint.sh && \
+    echo '      # Skip system DLLs and view DLLs' >> /app/entrypoint.sh && \
+    echo '      if echo "$basename_dll" | grep -qE "^System\.|^Microsoft\.|Views$|PrecompiledViews$"; then' >> /app/entrypoint.sh && \
+    echo '        continue' >> /app/entrypoint.sh && \
+    echo '      fi' >> /app/entrypoint.sh && \
+    echo '      echo "Starting application: $basename_dll.dll"' >> /app/entrypoint.sh && \
+    echo '      exec dotnet "$dll"' >> /app/entrypoint.sh && \
+    echo '    fi' >> /app/entrypoint.sh && \
+    echo '  fi' >> /app/entrypoint.sh && \
+    echo 'done' >> /app/entrypoint.sh && \
+    echo 'echo "Error: No application DLL with runtimeconfig.json found!"' >> /app/entrypoint.sh && \
+    echo 'echo "Available DLLs:"' >> /app/entrypoint.sh && \
+    echo 'ls -la /app/*.dll 2>/dev/null | head -10 || true' >> /app/entrypoint.sh && \
+    echo 'exit 1' >> /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh && \
+    chown appuser:appuser /app/entrypoint.sh
+
+# Switch to non-root user
+USER appuser
 
 ENTRYPOINT ["/app/entrypoint.sh"]

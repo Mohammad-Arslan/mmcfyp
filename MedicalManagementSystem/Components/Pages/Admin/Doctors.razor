@@ -1,0 +1,75 @@
+@page "/admin/doctors"
+@inject IDoctorService DoctorService
+@rendermode InteractiveServer
+
+<PageTitle>Doctors - MMGC</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-person-badge"></i> Doctors Management</h2>
+        <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Doctor</button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Specialization</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Appointments</th>
+                            <th>Revenue</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (doctors != null)
+                        {
+                            @foreach (var doctor in doctors)
+                            {
+                                <tr>
+                                    <td><a href="/admin/doctors/@doctor.Id">@doctor.FullName</a></td>
+                                    <td>@doctor.Specialization</td>
+                                    <td>@doctor.Email</td>
+                                    <td>@doctor.Phone</td>
+                                    <td>@(doctorAppointmentCounts.GetValueOrDefault(doctor.Id, 0))</td>
+                                    <td>₹@(doctorRevenues.GetValueOrDefault(doctor.Id, 0)).ToString("N2")</td>
+                                    <td><span class="badge bg-@(doctor.Status == "Active" ? "success" : "secondary")">@doctor.Status</span></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<Doctor>? doctors;
+    private Dictionary<int, int> doctorAppointmentCounts = new();
+    private Dictionary<int, decimal> doctorRevenues = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        doctors = await DoctorService.GetAllDoctorsAsync();
+        
+        // Load appointment counts and revenues for all doctors
+        if (doctors != null)
+        {
+            foreach (var doctor in doctors)
+            {
+                doctorAppointmentCounts[doctor.Id] = await DoctorService.GetDoctorAppointmentCountAsync(doctor.Id);
+                doctorRevenues[doctor.Id] = await DoctorService.GetDoctorTotalRevenueAsync(doctor.Id);
+            }
+        }
+    }
+}

@@ -1,0 +1,74 @@
+@page "/admin/procedures"
+@inject IProcedureService ProcedureService
+@rendermode InteractiveServer
+
+<PageTitle>Procedures - MMGC</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-clipboard-pulse"></i> Procedures & Treatments</h2>
+        <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> New Procedure</button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Procedure #</th>
+                            <th>Patient</th>
+                            <th>Type</th>
+                            <th>Doctor</th>
+                            <th>Date</th>
+                            <th>Cost</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (procedures != null)
+                        {
+                            @foreach (var procedure in procedures)
+                            {
+                                <tr>
+                                    <td>@procedure.ProcedureNumber</td>
+                                    <td>@procedure.Patient?.FullName</td>
+                                    <td>@procedure.ProcedureType</td>
+                                    <td>@(procedure.Doctor?.FullName ?? "Not Assigned")</td>
+                                    <td>@procedure.ProcedureDate.ToString("MMM dd, yyyy")</td>
+                                    <td>₹@procedure.Cost.ToString("N2")</td>
+                                    <td><span class="badge bg-@GetStatusColor(procedure.Status)">@procedure.Status</span></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-success"><i class="bi bi-receipt"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<Procedure>? procedures;
+
+    protected override async Task OnInitializedAsync()
+    {
+        procedures = await ProcedureService.GetAllProceduresAsync();
+    }
+
+    private string GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Completed" => "success",
+            "In Progress" => "warning",
+            "Scheduled" => "primary",
+            _ => "secondary"
+        };
+    }
+}

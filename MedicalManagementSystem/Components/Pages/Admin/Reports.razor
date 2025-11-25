@@ -1,0 +1,44 @@
+@page "/admin/reports"
+@rendermode InteractiveServer
+
+<PageTitle>Reports - MMGC</PageTitle>
+
+<div class="container-fluid py-4">
+    <h2><i class="bi bi-graph-up"></i> Reports</h2>
+
+    <div class="row g-4 mt-2">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-clipboard-data text-primary fs-1"></i>
+                    <h5 class="mt-3">Medical Reports</h5>
+                    <p class="text-muted">Procedures, Surgeries, Ultrasounds</p>
+                    <button class="btn btn-primary">Generate</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-cash-stack text-success fs-1"></i>
+                    <h5 class="mt-3">Financial Reports</h5>
+                    <p class="text-muted">Revenue, Expenses, Invoices</p>
+                    <button class="btn btn-success">Generate</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-person-check text-info fs-1"></i>
+                    <h5 class="mt-3">Patient Reports</h5>
+                    <p class="text-muted">Treatment & Test History</p>
+                    <button class="btn btn-info">Generate</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+}
