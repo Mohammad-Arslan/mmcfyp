@@ -1,10 +1,23 @@
-﻿@page "/home"
+﻿@page "/"
 @inject NavigationManager Navigation
-@rendermode InteractiveServer
 
-@code {
-    protected override void OnInitialized()
-    {
-        Navigation.NavigateTo("/admin/dashboard", forceLoad: true);
-    }
-}
+<PageTitle>Home - MMGC</PageTitle>
+
+<div class="container-fluid py-4">
+    <AuthorizeView>
+        <Authorized>
+            <div class="text-center">
+                <h1>Welcome to MMGC System</h1>
+                <p>Medical Management & General Care System</p>
+                <a href="/admin/dashboard" class="btn btn-primary">Go to Dashboard</a>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <div class="text-center">
+                <h1>Welcome to MMGC System</h1>
+                <p>Medical Management & General Care System</p>
+                <a href="/login" class="btn btn-primary">Login</a>
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>

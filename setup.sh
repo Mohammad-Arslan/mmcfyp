@@ -390,6 +390,133 @@ fi
 if docker ps --format '{{.Names}}' | grep -q "^blazor-app$"; then
     print_success "Blazor app container is running"
     
+    # Wait for blazor-app to be ready before running migrations
+    print_info "Waiting for blazor-app container to be ready..."
+    sleep 5
+    
+    # Setup Identity tables and migrations
+    echo ""
+    print_info "Setting up database migrations and Identity tables..."
+    
+    # Check if migrations directory exists
+    MIGRATIONS_DIR="$PROJECT_PATH/Data/Migrations"
+    MIGRATION_EXISTS=false
+    
+    # Determine the project path inside the container (mounted volume)
+    if [ "$PROJECT_PATH" = "." ]; then
+        CONTAINER_PROJECT_PATH="$PROJECT_NAME"
+    else
+        CONTAINER_PROJECT_PATH="$PROJECT_PATH"
+    fi
+    
+    if [ -d "$MIGRATIONS_DIR" ] && [ "$(ls -A $MIGRATIONS_DIR/*.cs 2>/dev/null | wc -l)" -gt 0 ]; then
+        print_info "Migrations directory exists with files"
+        MIGRATION_EXISTS=true
+    else
+        print_info "No migrations found. Creating initial migration..."
+        
+        # Wait a bit more for the container to fully initialize
+        sleep 3
+        
+        # Check if EF Core tools are available in container
+        if docker exec blazor-app dotnet ef --version &>/dev/null; then
+            print_info "EF Core tools are available"
+            
+            # Create migration
+            if docker exec blazor-app dotnet ef migrations add InitialIdentityMigration \
+                --project "$CONTAINER_PROJECT_PATH/$PROJECT_NAME.csproj" \
+                --context ApplicationDbContext \
+                --output-dir Data/Migrations 2>&1 | tee /tmp/migration_output.log; then
+                print_success "Migration created successfully"
+                MIGRATION_EXISTS=true
+            else
+                print_warning "Failed to create migration. It may already exist or there may be an issue."
+                print_info "Checking if migration was created..."
+                if docker exec blazor-app test -d "/app/$CONTAINER_PROJECT_PATH/Data/Migrations" && \
+                   docker exec blazor-app ls "/app/$CONTAINER_PROJECT_PATH/Data/Migrations"/*.cs &>/dev/null; then
+                    print_success "Migration files found"
+                    MIGRATION_EXISTS=true
+                else
+                    print_warning "Migration creation failed. The app will create tables on startup."
+                    print_info "This is normal for first-time setup. Tables will be created automatically."
+                fi
+            fi
+        else
+            print_warning "EF Core tools not available in container. Migrations will be created on first app startup."
+            print_info "The application will automatically create database tables when it starts."
+        fi
+    fi
+    
+    # Apply migrations if they exist
+    if [ "$MIGRATION_EXISTS" = true ]; then
+        print_info "Applying database migrations..."
+        
+        # Wait a bit for the app to be ready
+        sleep 2
+        
+        if docker exec blazor-app dotnet ef database update \
+            --project "$CONTAINER_PROJECT_PATH/$PROJECT_NAME.csproj" \
+            --context ApplicationDbContext 2>&1 | tee /tmp/migration_apply.log; then
+            print_success "Migrations applied successfully"
+        else
+            print_warning "Failed to apply migrations via EF tools. The app will apply them on startup."
+            print_info "This is normal - the application will handle migrations automatically."
+        fi
+    fi
+    
+    # Verify Identity tables are created
+    echo ""
+    print_info "Verifying Identity tables..."
+    
+    if [ "$MSSQL_RUNNING" = true ]; then
+        # SQL script to check Identity tables
+        CHECK_TABLES_SQL=$(cat <<'EOFSQL'
+SET NOCOUNT ON;
+DECLARE @Tables TABLE (TableName NVARCHAR(256));
+DECLARE @MissingTables TABLE (TableName NVARCHAR(256));
+INSERT INTO @Tables VALUES 
+    ('AspNetRoles'), ('AspNetUsers'), ('AspNetUserRoles'),
+    ('AspNetUserClaims'), ('AspNetUserLogins'), ('AspNetRoleClaims'), ('AspNetUserTokens');
+INSERT INTO @MissingTables (TableName)
+SELECT t.TableName FROM @Tables t
+WHERE NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = t.TableName);
+DECLARE @Exists INT = (SELECT COUNT(*) FROM @Tables t WHERE EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = t.TableName));
+DECLARE @Missing INT = (SELECT COUNT(*) FROM @MissingTables);
+IF @Missing = 0
+    SELECT 'SUCCESS' as Status, @Exists as TablesFound, @Missing as TablesMissing
+ELSE
+    SELECT 'MISSING' as Status, @Exists as TablesFound, @Missing as TablesMissing;
+EOFSQL
+        )
+        
+        CHECK_RESULT=$(docker exec mssql-server /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P "$MSSQL_SA_PASSWORD" \
+            -d "$DB_NAME" -C -h -1 -W \
+            -Q "$CHECK_TABLES_SQL" 2>/dev/null | grep -E "SUCCESS|MISSING" || echo "UNKNOWN")
+        
+        if echo "$CHECK_RESULT" | grep -q "SUCCESS"; then
+            print_success "All Identity tables are created"
+        elif echo "$CHECK_RESULT" | grep -q "MISSING"; then
+            print_warning "Some Identity tables are missing."
+            print_info "Creating missing Identity tables..."
+            
+            # Use the create-missing-identity-tables.sh script if it exists
+            if [ -f "./create-missing-identity-tables.sh" ]; then
+                if bash ./create-missing-identity-tables.sh 2>&1 | grep -q "All Identity tables exist"; then
+                    print_success "All Identity tables have been created successfully"
+                else
+                    print_warning "Some tables may still be missing. They will be created when the app starts."
+                fi
+            else
+                print_info "The application will automatically create missing tables on startup."
+            fi
+        else
+            print_info "Could not verify Identity tables. They will be created when the app starts."
+        fi
+    fi
+    
+    echo ""
+    
     # Show container info
     echo ""
     echo -e "${BLUE}Container Information:${NC}"
@@ -453,6 +580,11 @@ if docker ps --format '{{.Names}}' | grep -q "^blazor-app$"; then
     echo -e "  Restart:          ${YELLOW}$DOCKER_COMPOSE_CMD restart${NC}"
     echo -e "  View status:      ${YELLOW}docker ps${NC}"
     echo -e "  Connect to SQL:   ${YELLOW}docker exec -it mssql-server /opt/mssql-tools18/bin/sqlcmd -S localhost -U $DB_USER -P '$MSSQL_SA_PASSWORD' -C${NC}"
+    echo ""
+    echo -e "${BLUE}Database Migration Commands:${NC}"
+    echo -e "  Create migration: ${YELLOW}docker exec blazor-app dotnet ef migrations add MigrationName --project $CONTAINER_PROJECT_PATH/$PROJECT_NAME.csproj${NC}"
+    echo -e "  Apply migrations: ${YELLOW}docker exec blazor-app dotnet ef database update --project $CONTAINER_PROJECT_PATH/$PROJECT_NAME.csproj${NC}"
+    echo -e "  Check tables:     ${YELLOW}./check-identity-tables.sh${NC}"
     echo ""
     
 else

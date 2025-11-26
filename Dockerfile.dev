@@ -4,6 +4,8 @@ WORKDIR /app
 
 # Install dotnet watch tool (if not already installed)
 RUN dotnet tool install --global dotnet-watch || dotnet tool update --global dotnet-watch || true
+# Install EF Core tools for migrations
+RUN dotnet tool install --global dotnet-ef || dotnet tool update --global dotnet-ef || true
 ENV PATH="${PATH}:/root/.dotnet/tools"
 
 # Expose the port
@@ -14,6 +16,9 @@ ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Development
 ENV DOTNET_USE_POLLING_FILE_WATCHER=true
 ENV DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
+
+# Copy NuGet.config for package source configuration
+COPY NuGet.config ./
 
 # Copy project file for initial restore (source code will be mounted as volume)
 # This allows the container to restore packages even if source isn't mounted yet

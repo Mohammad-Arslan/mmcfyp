@@ -1,8 +1,14 @@
 using MedicalManagementSystem.Components;
 using MedicalManagementSystem.Data;
+using MedicalManagementSystem.Models;
 using MedicalManagementSystem.Repositories;
 using MedicalManagementSystem.Services;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +33,40 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.EnableSensitiveDataLogging(builder.Environment.IsDevelopment());
     options.EnableServiceProviderCaching();
 });
+
+// Configure Identity
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    // Password settings
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireNonAlphanumeric = true;
+    options.Password.RequiredLength = 8;
+    options.Password.RequiredUniqueChars = 1;
+
+    // Lockout settings
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.AllowedForNewUsers = true;
+
+    // User settings
+    options.User.RequireUniqueEmail = true;
+    options.SignIn.RequireConfirmedEmail = false; // Set to true in production
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
+
+// Add authorization
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("DoctorOrAdmin", policy => policy.RequireRole("Admin", "Doctor"));
+    options.AddPolicy("StaffOrAdmin", policy => policy.RequireRole("Admin", "Doctor", "Nurse", "LabStaff"));
+});
+
+// Add authentication state provider for Blazor
+builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
 // Register Repository Pattern (DRY Principle)
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
@@ -64,9 +104,44 @@ using (var scope = app.Services.CreateScope())
             {
                 if (context.Database.CanConnect())
                 {
-                    logger.LogInformation("Database connection successful. Ensuring database schema...");
-                    context.Database.EnsureCreated();
-                    logger.LogInformation("Database schema ensured successfully.");
+                    logger.LogInformation("Database connection successful. Applying migrations...");
+                    
+                    // Always use migrations - never use EnsureCreated to avoid partial table creation
+                    try
+                    {
+                        var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+                        var appliedMigrations = await context.Database.GetAppliedMigrationsAsync();
+                        
+                        if (pendingMigrations.Any())
+                        {
+                            logger.LogInformation($"Found {pendingMigrations.Count()} pending migration(s). Applying...");
+                            logger.LogInformation($"Pending migrations: {string.Join(", ", pendingMigrations)}");
+                            await context.Database.MigrateAsync();
+                            logger.LogInformation("Database migrations applied successfully.");
+                        }
+                        else if (appliedMigrations.Any())
+                        {
+                            logger.LogInformation($"No pending migrations. Database is up to date. Applied migrations: {string.Join(", ", appliedMigrations)}");
+                        }
+                        else
+                        {
+                            logger.LogWarning("No migrations found in the database. Please create an initial migration.");
+                            logger.LogWarning("Run: docker exec blazor-app dotnet ef migrations add InitialIdentityMigration --project MedicalManagementSystem/MedicalManagementSystem.csproj");
+                            logger.LogWarning("Then restart the container to apply the migration.");
+                            // Don't use EnsureCreated as it can create partial schemas
+                            throw new InvalidOperationException("No migrations found. Please create an initial migration first.");
+                        }
+                    }
+                    catch (Exception migrateEx)
+                    {
+                        logger.LogError(migrateEx, "Failed to apply migrations.");
+                        // Don't fallback to EnsureCreated - it can create incomplete schemas
+                        logger.LogError("Please ensure migrations are created and applied correctly.");
+                        throw;
+                    }
+
+                    // Initialize roles and admin user
+                    await InitializeRolesAndUsersAsync(services, logger);
                     break;
                 }
             }
@@ -106,7 +181,70 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
 
+// Add authentication & authorization middleware
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+async Task InitializeRolesAndUsersAsync(IServiceProvider serviceProvider, ILogger logger)
+{
+    var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+    // Create roles
+    string[] roles = { "Admin", "Doctor", "Nurse", "LabStaff", "Receptionist" };
+    
+    foreach (var roleName in roles)
+    {
+        var roleExists = await roleManager.RoleExistsAsync(roleName);
+        if (!roleExists)
+        {
+            await roleManager.CreateAsync(new IdentityRole(roleName));
+            logger.LogInformation($"Created role: {roleName}");
+        }
+    }
+
+    // Create default admin user
+    var adminEmail = "admin@mmgc.com";
+    var adminUser = await userManager.FindByEmailAsync(adminEmail);
+    
+    if (adminUser == null)
+    {
+        adminUser = new ApplicationUser
+        {
+            UserName = adminEmail,
+            Email = adminEmail,
+            EmailConfirmed = true,
+            FirstName = "System",
+            LastName = "Administrator",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var result = await userManager.CreateAsync(adminUser, "Arsal@112231");
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+            logger.LogInformation("Default admin user created successfully.");
+            logger.LogInformation($"Admin Email: {adminEmail}");
+            logger.LogInformation("Admin Password: Arsal@112231");
+        }
+        else
+        {
+            logger.LogError($"Failed to create admin user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+        }
+    }
+    else
+    {
+        // Ensure admin is in Admin role
+        if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+        {
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+            logger.LogInformation("Admin user added to Admin role.");
+        }
+    }
+}
 
 app.Run();

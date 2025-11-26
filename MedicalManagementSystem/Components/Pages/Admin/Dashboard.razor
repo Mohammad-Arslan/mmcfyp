@@ -1,5 +1,5 @@
 @page "/admin/dashboard"
-@page "/"
+@attribute [Authorize(Roles = "Admin,Doctor,Nurse,LabStaff,Receptionist")]
 @inject IDashboardService DashboardService
 @rendermode InteractiveServer
 

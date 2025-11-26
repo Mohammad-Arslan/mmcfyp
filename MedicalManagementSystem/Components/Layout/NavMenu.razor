@@ -1,6 +1,8 @@
-﻿<div class="top-row ps-3 navbar navbar-dark bg-primary">
+﻿@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="top-row ps-3 navbar navbar-dark bg-primary">
     <div class="container-fluid">
-        <a class="navbar-brand fw-bold" href="/">
+        <a class="navbar-brand fw-bold" href="/admin/dashboard">
             <i class="bi bi-hospital"></i> MMGC System
         </a>
     </div>
@@ -10,53 +12,74 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
-                <i class="bi bi-speedometer2"></i> Dashboard
-            </NavLink>
-        </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/dashboard" Match="NavLinkMatch.All">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </NavLink>
+                </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/admin/appointments">
-                <i class="bi bi-calendar-check"></i> Appointments
-            </NavLink>
-        </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/appointments">
+                        <i class="bi bi-calendar-check"></i> Appointments
+                    </NavLink>
+                </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/admin/doctors">
-                <i class="bi bi-person-badge"></i> Doctors
-            </NavLink>
-        </div>
+                @if (IsAdmin())
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="/admin/doctors">
+                            <i class="bi bi-person-badge"></i> Doctors
+                        </NavLink>
+                    </div>
+                }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/admin/patients">
-                <i class="bi bi-people"></i> Patients
-            </NavLink>
-        </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/patients">
+                        <i class="bi bi-people"></i> Patients
+                    </NavLink>
+                </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/admin/procedures">
-                <i class="bi bi-clipboard-pulse"></i> Procedures
-            </NavLink>
-        </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/procedures">
+                        <i class="bi bi-clipboard-pulse"></i> Procedures
+                    </NavLink>
+                </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/admin/lab-tests">
-                <i class="bi bi-file-earmark-medical"></i> Laboratory
-            </NavLink>
-        </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/lab-tests">
+                        <i class="bi bi-file-earmark-medical"></i> Laboratory
+                    </NavLink>
+                </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/admin/transactions">
-                <i class="bi bi-receipt"></i> Transactions
-            </NavLink>
-        </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/transactions">
+                        <i class="bi bi-receipt"></i> Transactions
+                    </NavLink>
+                </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/admin/reports">
-                <i class="bi bi-graph-up"></i> Reports
-            </NavLink>
-        </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/reports">
+                        <i class="bi bi-graph-up"></i> Reports
+                    </NavLink>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/login">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
     </nav>
 </div>
 
+@code {
+    private bool IsAdmin()
+    {
+        var authState = AuthenticationStateProvider.GetAuthenticationStateAsync().Result;
+        return authState.User.IsInRole("Admin");
+    }
+}

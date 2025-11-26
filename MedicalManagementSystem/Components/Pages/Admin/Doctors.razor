@@ -1,4 +1,5 @@
 @page "/admin/doctors"
+@attribute [Authorize(Roles = "Admin")]
 @inject IDoctorService DoctorService
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer

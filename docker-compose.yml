@@ -43,6 +43,9 @@ services:
       mssql:
         condition: service_healthy
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     networks:
       - blazor-network
 
